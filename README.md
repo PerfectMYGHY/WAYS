@@ -55,13 +55,13 @@ WAYS operates on a simple but effective principle: workers send heartbeat messag
 Using npm:
 
 ```bash
-npm install ways
+npm install @perfectghy/ways
 ```
 
 Using yarn:
 
 ```bash
-yarn add ways
+yarn add @perfectghy/ways
 ```
 
 ## Usage
@@ -69,7 +69,7 @@ yarn add ways
 ### Basic Example
 
 ```typescript
-import WAYS from 'ways';
+import WAYS from '@perfectghy/ways';
 
 // Create an instance
 const detector = new WAYS();
