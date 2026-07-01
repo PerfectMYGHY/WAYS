@@ -1,6 +1,6 @@
 {
   "name": "@perfectghy/ways",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "WAYS — Worker, Are You Sleeping? — detects open Developer Tools with 100% reliability, across all platforms. Most common evasion tricks won't work. (Disabling JS? Sure, but then DevTools are pointless too.)",
   "repository": {
     "type": "git",
