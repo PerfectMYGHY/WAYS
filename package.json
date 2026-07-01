@@ -10,6 +10,7 @@
   "bugs": {
     "url": "https://github.com/PerfectMYGHY/WAYS/issues"
   },
+  "license": "MIT",
   "main": "dist/ways.js",
   "types": "dist/types/index.d.ts",
   "module": "src/index.js",
