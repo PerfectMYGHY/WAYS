@@ -6,6 +6,8 @@ A cross-platform JavaScript library that detects whether browser Developer Tools
 
 ## Table of Contents
 
+[中文版](./README.chinese.md)
+
 - [Overview](#overview)
 - [How It Works](#how-it-works)
 - [Installation](#installation)
