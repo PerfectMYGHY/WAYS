@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WAYS 测试页面</title>
+</head>
+<body>
+<script src="dist/ways.js"></script>
+我可察觉你是否开启了控制台，延迟不超过200ms。
+<p id="result">检测中...</p>
+<script>
+const ways = new WAYS();
+ways.setWorkerAddress("dist/ways.worker.js")
+    .then(() => {
+        ways.startDetecting();
+        const displayer = document.getElementById("result");
+        setInterval(async () => {
+            const opened = await ways.getIsOpenedDevTools();
+            if (opened) {
+                displayer.innerHTML = "被发现了吧！你打开了开发者工具！";
+            } else {
+                displayer.innerHTML = "你居然还没有打开开发者工具，快打开！";
+            }
+        }, 50);
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    // 编译目标为 ES6，可以兼顾兼容性和现代语法
+    "target": "ES6",
+    // 使用 ES Module 标准，方便打包工具进行 tree-shaking
+    "module": "ESNext",
+    // 启用所有严格的类型检查选项，有助于提升代码质量
+    "strict": true,
+    // 允许引入 CommonJS 模块
+    "esModuleInterop": true,
+    // 跳过第三方库的类型检查，加快编译速度
+    "skipLibCheck": true,
+    // 生成 .d.ts 类型声明文件，让使用者获得类型提示
+    "declaration": true,
+    // 声明文件的输出目录
+    "declarationDir": "./dist/types",
+    // 指定第三方库的类型查找方式
+    "moduleResolution": "bundler",
+    // 允许使用装饰器等实验性语法
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "forceConsistentCasingInFileNames": true,
+    "rootDir": "./src",
+  },
+  // 指定需要编译的目录
+  "include": ["src/**/*"],
+  // 排除测试和 node_modules 目录
+  "exclude": ["node_modules", "test"]
+}

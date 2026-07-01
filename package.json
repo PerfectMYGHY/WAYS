@@ -1,0 +1,46 @@
+{
+  "name": "WAYS",
+  "version": "1.0.0",
+  "description": "WAYS — Worker, Are You Sleeping? — detects open Developer Tools with 100% reliability, across all platforms. Most common evasion tricks won't work. (Disabling JS? Sure, but then DevTools are pointless too.)",
+  "main": "dist/ways.js",
+  "types": "dist/types/index.d.ts",
+  "module": "src/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/ways.js",
+      "require": "./dist/ways.js",
+      "types": "./dist/types/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "npm run clean && set NODE_ENV=production && webpack",
+    "dev": "npm run clean && set NODE_ENV=development && webpack",
+    "watch": "npm run clean && set NODE_ENV=development && webpack --watch",
+    "serve": "npm run clean && set NODE_ENV=development && webpack serve",
+    "start": "npm run serve",
+    "prepare": "npm run build",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "private": true,
+  "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
+    "babel-loader": "^10.1.1",
+    "rimraf": "^6.1.3",
+    "terser-webpack-plugin": "^5.6.1",
+    "ts-loader": "^9.6.2",
+    "typescript": "^6.0.3",
+    "webpack": "^5.108.3",
+    "webpack-cli": "^7.1.0",
+    "webpack-dev-server": "^5.2.5"
+  },
+  "dependencies": {
+    "@types/lodash.bindall": "^4.4.9",
+    "async-mutex": "^0.5.0",
+    "lodash.bindall": "^4.4.0"
+  }
+}
