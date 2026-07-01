@@ -4,6 +4,9 @@
 
 一个跨平台的 JavaScript 库，用于检测浏览器开发者工具是否打开，基于多 Worker 心跳机制与随机自愈对抗策略。
 
+**GitHub**: [https://github.com/PerfectMYGHY/WAYS](https://github.com/PerfectMYGHY/WAYS)  
+**npm**: [https://www.npmjs.com/package/@perfectghy/ways](https://www.npmjs.com/package/@perfectghy/ways)
+
 ## 目录
 
 [英文版](./README.md)

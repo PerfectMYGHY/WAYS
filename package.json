@@ -2,6 +2,14 @@
   "name": "@perfectghy/ways",
   "version": "1.0.0",
   "description": "WAYS — Worker, Are You Sleeping? — detects open Developer Tools with 100% reliability, across all platforms. Most common evasion tricks won't work. (Disabling JS? Sure, but then DevTools are pointless too.)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PerfectMYGHY/WAYS.git"
+  },
+  "homepage": "https://github.com/PerfectMYGHY/WAYS#readme",
+  "bugs": {
+    "url": "https://github.com/PerfectMYGHY/WAYS/issues"
+  },
   "main": "dist/ways.js",
   "types": "dist/types/index.d.ts",
   "module": "src/index.js",

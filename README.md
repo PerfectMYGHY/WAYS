@@ -4,6 +4,9 @@
 
 A cross-platform JavaScript library that detects whether browser Developer Tools are open, using a multi-worker heartbeat mechanism with randomized self-healing countermeasures.
 
+**GitHub**: [https://github.com/PerfectMYGHY/WAYS](https://github.com/PerfectMYGHY/WAYS)  
+**npm**: [https://www.npmjs.com/package/@perfectghy/ways](https://www.npmjs.com/package/@perfectghy/ways)
+
 ## Table of Contents
 
 [中文版](./README.chinese.md)
