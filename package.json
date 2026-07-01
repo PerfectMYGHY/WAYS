@@ -1,5 +1,5 @@
 {
-  "name": "WAYS",
+  "name": "@perfectghy/ways",
   "version": "1.0.0",
   "description": "WAYS — Worker, Are You Sleeping? — detects open Developer Tools with 100% reliability, across all platforms. Most common evasion tricks won't work. (Disabling JS? Sure, but then DevTools are pointless too.)",
   "main": "dist/ways.js",
@@ -25,7 +25,6 @@
     "prepare": "npm run build",
     "test": "echo \"No tests yet\" && exit 0"
   },
-  "private": true,
   "devDependencies": {
     "@babel/core": "^7.29.7",
     "@babel/preset-env": "^7.29.7",
