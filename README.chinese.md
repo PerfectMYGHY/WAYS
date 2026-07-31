@@ -9,9 +9,10 @@
 
 ## 目录
 
-[英文版](./README.md)
+[English version](./README.md)
 
 - [概述](#概述)
+- [v2.0.0 破坏性变更](#v200-破坏性变更)
 - [工作原理](#工作原理)
 - [安装](#安装)
 - [使用指南](#使用指南)
@@ -26,6 +27,55 @@ WAYS 是一个 TypeScript 库，用于检测浏览器开发者工具是否被打
 
 该库在所有主流浏览器和平台上均稳定运行，因为它仅使用标准 Web API。无 hack，无非标准特性，无浏览器特定漏洞利用。
 
+## v2.0.0 破坏性变更
+
+> **2.0.0 版本引入了全新的事件驱动 API。** 基于轮询的 `getIsOpenedDevTools()` 方法已被移除。
+
+此主要版本同时修复了 1.x 轮询架构中固有的误判问题。新的事件驱动架构能够正确区分瞬时的心跳延迟与真正的开发者工具暂停状态。
+
+### 迁移指南
+
+**v1.x（轮询方式）：**
+
+```typescript
+const detector = new WAYS();
+await detector.setWorkerAddress('/path/to/ways.worker.js');
+detector.startDetecting();
+
+// 每 50ms 轮询
+setInterval(async () => {
+  const isOpen = await detector.getIsOpenedDevTools();
+  if (isOpen) {
+    console.log('开发者工具已打开！');
+  }
+}, 50);
+```
+
+**v2.0.0（事件驱动）：**
+
+```typescript
+const detector = new WAYS();
+await detector.setWorkerAddress('/path/to/ways.worker.js');
+
+// 监听事件
+detector.on('devToolsOpened', () => {
+  console.log('开发者工具已打开！');
+});
+
+detector.on('devToolsClosed', () => {
+  console.log('开发者工具已关闭。');
+});
+
+detector.startDetecting();
+```
+
+**主要差异：**
+
+- `getIsOpenedDevTools()` → **已移除**
+- 用事件监听器 `devToolsOpened` 和 `devToolsClosed` 替代轮询
+- 无需手动轮询；状态变化时自动触发事件
+- 检测延迟仍保持在 ≤ 200ms
+
 ## 工作原理
 
 WAYS 基于一个简单而有效的原理：Worker 定期向主线程发送心跳消息。如果 Worker 被 debugger 语句挂起，其心跳停止，主线程随即检测到中断。
@@ -34,26 +84,22 @@ WAYS 基于一个简单而有效的原理：Worker 定期向主线程发送心�
 
 1. Worker 池管理
    - 库维护一个动态的 Web Worker 集合。
-   - 每个 Worker 运行一个紧凑循环：`setInterval(() => { debugger; postMessage("alive"); }, 100)`。
-   - 正常情况下，每个 Worker 每 100 毫秒发送一次心跳。
+   - 每个 Worker 运行一个紧凑循环：`setInterval(() => { debugger; postMessage("alive"); }, 50)`。
+   - 正常情况下，每个 Worker 每 50 毫秒发送一次心跳。
 
 2. 心跳监控
    - 主线程记录每个 Worker 的最后心跳时间。
-   - 如果某个 Worker 的最后心跳时间距今超过 200 毫秒，则视为“睡着”。
-   - `getIsOpenedDevTools()` 方法在任一 Worker 睡着时返回 `true`。
+   - 如果某个 Worker 的最后心跳时间距今超过 `internalTimeout` 毫秒（默认 200ms），则视为"睡着"。
+   - 当 Worker 睡着时，触发 `devToolsOpened` 事件。
+   - 当 Worker 恢复时，触发 `devToolsClosed` 事件。
 
 3. 自愈与随机化
-   - 每 3 秒，库随机辞退一部分 Worker，并招募等量的新 Worker 进行替换。
-   - 该过程由互斥锁保护，确保辞退与招募操作的一致性。
+   - 每 5 秒，库随机辞退一部分 Worker，并招募等量的新 Worker 进行替换。
    - 随机化机制使得攻击者难以建立稳定的调试环境。
 
 4. 优雅终止
    - 调用 `stopDetecting()` 时，检测循环退出。
    - 所有剩余的 Worker 会被正确辞退并终止，防止资源泄漏。
-
-5. 互斥锁保护
-   - Worker 池的修改操作（辞退与招募）和检测读取操作均由互斥锁保护。
-   - 确保 Worker 池在读操作期间不会被修改，避免状态不一致。
 
 ## 安装
 
@@ -79,18 +125,28 @@ import WAYS from '@perfectghy/ways';
 // 创建实例
 const detector = new WAYS();
 
+// 启动前配置（可选）
+detector.max_workers = 8;
+detector.dismissed_workers = 2;
+detector.internalTimeout = 300;
+
 // 设置 Worker 脚本地址（库提供了 ways.worker.js）
 await detector.setWorkerAddress('/path/to/ways.worker.js');
+
+// 监听状态变化
+detector.on('devToolsOpened', () => {
+  console.log('开发者工具已打开！');
+});
+
+detector.on('devToolsClosed', () => {
+  console.log('开发者工具已关闭。');
+});
 
 // 启动检测
 detector.startDetecting();
 
-// 检查开发者工具是否打开
-const isOpen = await detector.getIsOpenedDevTools();
-console.log('开发者工具打开状态:', isOpen);
-
 // 停止检测
-detector.stopDetecting();
+// detector.stopDetecting();
 ```
 
 ### HTML 示例（独立页面）
@@ -114,14 +170,12 @@ detector.stopDetecting();
             .then(() => {
                 ways.startDetecting();
                 const displayer = document.getElementById("result");
-                setInterval(async () => {
-                    const opened = await ways.getIsOpenedDevTools();
-                    if (opened) {
-                        displayer.innerHTML = "被发现了吧！你打开了开发者工具！";
-                    } else {
-                        displayer.innerHTML = "你居然还没有打开开发者工具，快打开！";
-                    }
-                }, 50);
+                ways.on('devToolsOpened', () => {
+                    displayer.innerHTML = "被发现了吧！你打开了开发者工具！";
+                });
+                ways.on('devToolsClosed', () => {
+                    displayer.innerHTML = "你居然还没有打开开发者工具，快打开！";
+                });
             });
     </script>
 </body>
@@ -136,11 +190,10 @@ detector.stopDetecting();
 | `const ways = new WAYS();` | 创建一个新的检测器实例。 |
 | `ways.setWorkerAddress("dist/ways.worker.js")` | 配置 Worker 脚本位置（库提供了此文件）并验证其可访问性。 |
 | `ways.startDetecting()` | 启动 Worker 池和检测循环。 |
-| `setInterval(async () => { ... }, 50)` | 每 50 毫秒轮询检测状态。 |
-| `await ways.getIsOpenedDevTools()` | 若有 Worker 睡着则返回 `true`，表示开发者工具已打开。 |
-| `displayer.innerHTML = ...` | 更新页面以显示当前检测状态。 |
+| `ways.on('devToolsOpened', ...)` | 注册回调，在开发者工具打开时立即触发。 |
+| `ways.on('devToolsClosed', ...)` | 注册回调，在开发者工具关闭时立即触发。 |
 
-该示例每 50 毫秒检测一次，提供近乎实时的反馈。当开发者工具被打开时，由于 Worker 的心跳间隔为 100 毫秒，检测将在至多 200 毫秒内触发。
+事件驱动方式提供即时反馈，无需手动轮询。当开发者工具被打开时，事件将在至多 200 毫秒内触发。
 
 ### Worker 脚本
 
@@ -151,7 +204,7 @@ detector.stopDetecting();
 setInterval(() => {
     debugger;
     postMessage("alive");
-}, 100);
+}, 50);
 ```
 
 你不需要自己创建此文件；它已经包含在 npm 包中。
@@ -160,12 +213,42 @@ setInterval(() => {
 
 ### 类：WAYS
 
+WAYS 类继承自 `EventEmitter`，因此所有标准事件方法（`on`、`once`、`off`、`emit` 等）均可用。
+
+#### 事件
+
+| 事件 | 描述 |
+|------|------|
+| `devToolsOpened` | 检测到开发者工具打开时触发。 |
+| `devToolsClosed` | 检测到开发者工具关闭时触发。 |
+
 #### 属性
 
 | 属性 | 类型 | 默认值 | 描述 |
 |------|------|--------|------|
-| `max_workers` | `number` | `10` | Worker 池中的最大 Worker 数量 |
-| `dismissed_workers` | `number` | `1` | 每个重置周期辞退并招募的 Worker 数量 |
+| `max_workers` | `number` | `5` | Worker 池中的最大 Worker 数量。需在调用 `startDetecting()` 之前修改。 |
+| `dismissed_workers` | `number` | `0` | 每个重置周期辞退并招募的 Worker 数量。设置此值以控制更替频率。可在检测前或检测中修改（下次重置周期生效）。 |
+| `internalTimeout` | `number` | `200` | Worker 被判定为睡着的超时时间（毫秒）。需在调用 `startDetecting()` 之前修改。 |
+
+#### 配置说明
+
+`max_workers`、`dismissed_workers` 和 `internalTimeout` 属性均为公开属性，可直接修改：
+
+```typescript
+const detector = new WAYS();
+
+// 启动前配置
+detector.max_workers = 8;
+detector.dismissed_workers = 2;
+detector.internalTimeout = 300;
+
+await detector.setWorkerAddress('/path/to/ways.worker.js');
+detector.startDetecting();
+```
+
+- `max_workers` 和 `internalTimeout` 必须在调用 `startDetecting()` **之前**设置。
+- `dismissed_workers` 可随时修改，新值在下一个重置周期生效。
+- 检测启动后修改 `max_workers` 不会影响当前池大小。
 
 #### 方法
 
@@ -181,43 +264,32 @@ setInterval(() => {
 启动检测循环。该方法初始化 Worker 池并开始周期性的重置循环。
 
 - 立即生成 `max_workers` 个 Worker。
-- 每 3 秒随机辞退 `dismissed_workers` 个 Worker，并招募相同数量的新 Worker。
+- 每 5 秒随机辞退 `dismissed_workers` 个 Worker，并招募相同数量的新 Worker。
 - 检测循环持续运行直到调用 `stopDetecting()`。
+- 将根据 Worker 心跳状态自动触发 `devToolsOpened`/`devToolsClosed` 事件。
 
 ##### `stopDetecting(): void`
 
 停止检测循环并辞退所有剩余的 Worker。
 
 - 检测循环优雅退出。
-- 池中所有 Worker 通过 `dismiss()` 被终止。
+- 池中所有 Worker 被终止。
 - 防止资源泄漏，确保正确清理。
-
-##### `getIsOpenedDevTools(): Promise<boolean>`
-
-检查是否有 Worker 当前处于睡着状态。
-
-- 返回：若有 Worker 超过 200 毫秒未发送心跳则返回 `true`，否则返回 `false`。
-- 该方法受互斥锁保护，若重置操作正在进行则会等待。
 
 ##### `get lastError(): Error | undefined`
 
 返回检测过程中遇到的最后一个错误（若有）。
 
+#### 事件（详细）
+
+| 事件 | 参数 | 触发时机 |
+|------|------|----------|
+| `devToolsOpened` | 无 | 任何 Worker 在 `internalTimeout` 毫秒内未发送心跳时 |
+| `devToolsClosed` | 无 | 所有 Worker 恢复正常发送心跳时 |
+
 ### 类：WWorker
 
 内部类，代表单个 Worker。不供直接使用。
-
-#### 属性
-
-| 属性 | 类型 | 描述 |
-|------|------|------|
-| `sleeped` | `boolean` | 若 Worker 的最后心跳距今超过 200 毫秒则为 `true` |
-
-#### 方法
-
-##### `dismiss(): void`
-
-终止 Worker 并发送辞退消息。
 
 ## 防御机制
 
@@ -225,11 +297,11 @@ WAYS 采用多层防御，使得绕过检测对大多数用户而言不切实际
 
 ### 多 Worker 心跳
 
-库使用最多 10 个并发 Worker，每个独立发送心跳。禁用或杀死单个 Worker 无法停止检测；其余 Worker 将继续报告。
+库使用最多 5 个并发 Worker（可通过 `max_workers` 配置），每个独立发送心跳。禁用或杀死单个 Worker 无法停止检测；其余 Worker 将继续报告。
 
 ### 随机自愈
 
-每 3 秒，Worker 池会进行部分重置。Worker 被随机选中辞退并替换为新 Worker。这带来多重效果：
+每 5 秒，Worker 池会进行部分重置。Worker 被随机选中辞退并替换为新 Worker。这带来多重效果：
 
 - 攻击者无法简单识别并禁用所有 Worker，因为新 Worker 在不断被创建。
 - 随机化使得检测模式非确定性，阻碍对行为的逆向工程尝试。
@@ -239,11 +311,11 @@ WAYS 采用多层防御，使得绕过检测对大多数用户而言不切实际
 
 每个 Worker 在其心跳循环中包含一个 `debugger` 语句。当开发者工具打开且断点启用时：
 
-- 每 100 毫秒，每个活跃 Worker 都会命中一个 `debugger` 语句。
+- 每 50 毫秒，每个活跃 Worker 都会命中一个 `debugger` 语句。
 - 用户必须手动恢复每个 Worker 的执行，反复进行。
-- 由于 Worker 每 3 秒重置一次，新 Worker 会引入额外的 `debugger` 断点。
+- 由于 Worker 每 5 秒重置一次，新 Worker 会引入额外的 `debugger` 断点。
 
-即使断点被禁用，用户也必须反复点击“继续”以允许 Worker 继续执行，而重置周期会持续引入新的断点。
+即使断点被禁用，用户也必须反复点击"继续"以允许 Worker 继续执行，而重置周期会持续引入新的断点。
 
 ### 优雅终止
 
@@ -253,14 +325,6 @@ WAYS 采用多层防御，使得绕过检测对大多数用户而言不切实际
 - 所有 Worker 被正确辞退并终止。
 - 确保不会泄漏资源，应用可以干净清理而不会留下孤儿 Worker。
 
-### 互斥锁保护
-
-代码的关键部分受互斥锁保护，确保：
-
-- Worker 池的修改（辞退与招募）是原子性的。
-- 检测读取操作与正在进行的修改隔离。
-- 不存在可被利用来读取不一致状态的竞态条件。
-
 ## 已知限制
 
 ### 断点禁用
@@ -268,7 +332,7 @@ WAYS 采用多层防御，使得绕过检测对大多数用户而言不切实际
 如果用户手动禁用开发者工具中的断点，Worker 中的 `debugger` 语句将不会暂停执行。但是：
 
 - 用户必须保持开发者工具打开并反复手动恢复执行。
-- 重置周期每 3 秒引入带有新 `debugger` 断点的新 Worker。
+- 重置周期每 5 秒引入带有新 `debugger` 断点的新 Worker。
 - 大多数用户会因感到足够挫败而放弃调试尝试。
 
 ### JavaScript 禁用
@@ -277,7 +341,7 @@ WAYS 采用多层防御，使得绕过检测对大多数用户而言不切实际
 
 ### 性能影响
 
-库会生成最多 10 个 Worker，每个运行 100ms 间隔的循环。在正常情况下，性能开销极小。但当开发者工具打开且断点启用时，用户反复点击“继续”可能导致明显的 UI 卡顿。
+库会生成最多 5 个 Worker（默认），每个运行 50ms 间隔的循环。在正常情况下，性能开销极小。但当开发者工具打开且断点启用时，用户反复点击"继续"可能导致明显的 UI 卡顿。
 
 ## 许可证
 

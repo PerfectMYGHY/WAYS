@@ -1,21 +1,20 @@
 import bindAll from 'lodash.bindall';
 import { waitForMS, pickRandomFromSet } from './utils';
-import { Mutex } from 'async-mutex';
+import EventEmitter from 'eventemitter3';
 
 /**
  * WAYS公司的工人类
  */
-class WWorker {
+class WWorker extends EventEmitter {
     /** 内部Worker对象 */
     private worker: Worker;
-    /** 上一次回答时间 */
-    private last_reply_time: Date;
 
     /**
      * 初始化函数，创建WAYS公司的工人
      * @param address 工人地址
      */
     constructor(address: string) {
+        super();
         // 绑定方法
         bindAll(this, [
             'handleMessage',
@@ -23,8 +22,6 @@ class WWorker {
         // 初始化工人并监听他说话
         this.worker = new Worker(address);
         this.worker.addEventListener("message", this.handleMessage);
-        // 初始化信息
-        this.last_reply_time = new Date();
     }
 
     /**
@@ -32,7 +29,7 @@ class WWorker {
      * @param msg 消息事件
      */
     private handleMessage(msg: MessageEvent) {
-        this.last_reply_time = new Date();
+        this.emit('received');
     }
 
     /**
@@ -42,19 +39,12 @@ class WWorker {
         this.worker.postMessage("你被解雇啦！");
         this.worker.terminate();
     }
-
-    /**
-     * 获取工人是否睡着，超过200ms没回答就算睡着
-     */
-    public get sleeped(): boolean {
-        return (new Date().valueOf() - this.last_reply_time.valueOf()) >= 200;
-    }
 }
 
 /**
  * WAYS类，用于检测控制台是否开启
  */
-export default class WAYS {
+export default class WAYS extends EventEmitter {
     /** 工人地址 */
     private workerAddress?: string;
     /** 工人集合 */
@@ -62,22 +52,26 @@ export default class WAYS {
     /** 是否继续监测 */
     private keep_detecting: boolean = false;
     /** 最大工人数量 */
-    public max_workers: number = 10;
+    public max_workers: number = 5;
     /** 每次淘汰工人数量 */
-    public dismissed_workers: number = 1;
+    public dismissed_workers: number = 0;
     /** 上一个错误信息 */
     private last_error?: Error;
-    /** 互斥锁 */
-    private mutex = new Mutex();
+    /** 计时器 */
+    private timer?: number;
+    /** 超时时长 */
+    public internalTimeout: number = 200;
 
     /**
      * 初始化WAYS类
      */
     constructor() {
+        super();
         // 绑定方法
         bindAll(this, [
             'setWorkerAddress',
             'recruitWorker',
+            'handleReceive'
         ]);
     }
 
@@ -108,7 +102,18 @@ export default class WAYS {
         if (!this.workerAddress)
             throw new Error("还没有设置工人地址，你就招募工人啊");
         const worker = new WWorker(this.workerAddress);
+        worker.on('received', this.handleReceive);
         this.workers.add(worker);
+    }
+
+    private handleReceive() {
+        if (this.timer) {
+            clearTimeout(this.timer);
+        }
+        this.emit('devToolsClosed');
+        this.timer = setTimeout(() => {
+            this.emit('devToolsOpened');
+        }, this.internalTimeout);
     }
 
     /**
@@ -125,11 +130,9 @@ export default class WAYS {
         this.keep_detecting = true;
         new Promise(async () => {
             // 先招募几个工人
-            await this.mutex.runExclusive(async () => {
-                for (let i = 0; i < this.max_workers; i++) {
-                    this.recruitWorker();
-                }
-            });
+            for (let i = 0; i < this.max_workers; i++) {
+                this.recruitWorker();
+            }
             // 再一直进行工人随机劝退和招募
             while (this.keep_detecting) {
                 // 检查参数对不对
@@ -137,21 +140,18 @@ export default class WAYS {
                     this.last_error = new Error("不是，咋能辞退的工人数比总共人数还多啊？");
                     throw this.last_error;
                 }
-                // 上锁执行
-                await this.mutex.runExclusive(async () => {
-                    // 随机劝退几个工人
-                    const workers = pickRandomFromSet(this.workers, this.dismissed_workers);
-                    for (const worker of workers) {
-                        worker.dismiss();
-                        this.workers.delete(worker);
-                    }
-                    // 再重新招募几个工人补回来
-                    for (let i = 0; i < this.dismissed_workers; i++) {
-                        this.recruitWorker();
-                    }
-                });
-                // 让工人工作3s
-                await waitForMS(3000);
+                // 随机劝退几个工人
+                const workers = pickRandomFromSet(this.workers, this.dismissed_workers);
+                for (const worker of workers) {
+                    this.workers.delete(worker);
+                    worker.dismiss();
+                }
+                // 再重新招募几个工人补回来
+                for (let i = 0; i < this.dismissed_workers; i++) {
+                    this.recruitWorker();
+                }
+                // 让工人工作5s
+                await waitForMS(5000);
             }
             // 停止后辞退所有工人
             for (const worker of this.workers) {
@@ -162,18 +162,5 @@ export default class WAYS {
 
     public stopDetecting() {
         this.keep_detecting = false;
-    }
-
-    public async getIsOpenedDevTools(): Promise<boolean> {
-        let result = false
-        await this.mutex.runExclusive(() => {
-            for (const worker of this.workers) {
-                if (worker.sleeped) {
-                    result = true;
-                    break;
-                }
-            }
-        });
-        return result;
     }
 }
